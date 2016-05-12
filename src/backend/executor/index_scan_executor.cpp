@@ -117,7 +117,6 @@ bool IndexScanExecutor::DExecute() {
   }
   // Already performed the index lookup
   assert(done_);
-
   while (result_itr_ < result_.size()) {  // Avoid returning empty tiles
     if (result_[result_itr_]->GetTupleCount() == 0) {
       result_itr_++;
@@ -129,7 +128,6 @@ bool IndexScanExecutor::DExecute() {
     }
 
   }  // end while
-
   return false;
 }
 
@@ -169,6 +167,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     auto tile_group_header = tile_group.get()->GetHeader();
 
     size_t chain_length = 0;
+
+    cid_t max_committed_cid = transaction_manager.GetMaxCommittedCid();
+
     while (true) {
       ++chain_length;
 
@@ -237,8 +238,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
           return false;
         }
-
-        cid_t max_committed_cid = transaction_manager.GetMaxCommittedCid();
 
         // check whether older version is garbage.
         if (old_end_cid <= max_committed_cid) {
