@@ -27,12 +27,11 @@ class MVCCTest : public PelotonTest {};
 
 static std::vector<ConcurrencyType> TEST_TYPES = {
   CONCURRENCY_TYPE_OPTIMISTIC
-//  CONCURRENCY_TYPE_PESSIMISTIC,
-//  CONCURRENCY_TYPE_SSI,
-//  // CONCURRENCY_TYPE_SPECULATIVE_READ,
-//  CONCURRENCY_TYPE_EAGER_WRITE,
-//  CONCURRENCY_TYPE_TO,
-//  CONCURRENCY_TYPE_OCC_RB
+ CONCURRENCY_TYPE_PESSIMISTIC,
+ CONCURRENCY_TYPE_SSI,
+ // CONCURRENCY_TYPE_SPECULATIVE_READ,
+ CONCURRENCY_TYPE_EAGER_WRITE,
+ CONCURRENCY_TYPE_TO,
 };
 
 
@@ -188,25 +187,22 @@ TEST_F(MVCCTest, SingleThreadVersionChainTest) {
     // read deleted, insert back, update inserted, read newly updated,
     // delete inserted, read deleted
     {
-      if (concurrency::TransactionManagerFactory::GetProtocol() != CONCURRENCY_TYPE_OCC_RB) {
-        // Bypass RB
-        TransactionScheduler scheduler(1, table.get(), &txn_manager);
-        scheduler.Txn(0).Delete(100);
-        scheduler.Txn(0).Delete(0);
-        scheduler.Txn(0).Read(0);
-        scheduler.Txn(0).Update(0, 1);
-        scheduler.Txn(0).Read(0);
-        scheduler.Txn(0).Insert(0, 2);
-        scheduler.Txn(0).Update(0, 3);
-        scheduler.Txn(0).Read(0);
-        scheduler.Txn(0).Delete(0);
-        scheduler.Txn(0).Read(0);
-        scheduler.Txn(0).Commit();
+      TransactionScheduler scheduler(1, table.get(), &txn_manager);
+      scheduler.Txn(0).Delete(100);
+      scheduler.Txn(0).Delete(0);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(0).Update(0, 1);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(0).Insert(0, 2);
+      scheduler.Txn(0).Update(0, 3);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(0).Delete(0);
+      scheduler.Txn(0).Read(0);
+      scheduler.Txn(0).Commit();
 
-        scheduler.Run();  
+      scheduler.Run();  
 
-        ValidateMVCC_OldToNew(table.get());
-      }
+      ValidateMVCC_OldToNew(table.get());
     }
 
     // insert, delete inserted, read deleted, insert again, delete again

@@ -32,7 +32,6 @@ static std::vector<ConcurrencyType> TEST_TYPES = {
   // CONCURRENCY_TYPE_SPECULATIVE_READ,
   CONCURRENCY_TYPE_EAGER_WRITE,
   CONCURRENCY_TYPE_TO,
-  CONCURRENCY_TYPE_OCC_RB
 };
 
 void TransactionTest(concurrency::TransactionManager *txn_manager) {

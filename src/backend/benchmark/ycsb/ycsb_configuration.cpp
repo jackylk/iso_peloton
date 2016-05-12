@@ -177,8 +177,6 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
           state.protocol = CONCURRENCY_TYPE_TO;
         } else if (strcmp(protocol, "ewrite") == 0) {
           state.protocol = CONCURRENCY_TYPE_EAGER_WRITE;
-        } else if (strcmp(protocol, "occrb") == 0) {
-          state.protocol = CONCURRENCY_TYPE_OCC_RB;
         } else if (strcmp(protocol, "sread") == 0) {
           state.protocol = CONCURRENCY_TYPE_SPECULATIVE_READ;
         } else {
