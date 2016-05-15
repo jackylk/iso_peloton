@@ -377,8 +377,8 @@ Result OptimisticTxnManager::CommitTransaction() {
   }
   //////////////////////////////////////////////////////////
 
-  auto &log_manager = logging::LogManager::GetInstance();
-  log_manager.LogBeginTransaction(end_commit_id);
+  // auto &log_manager = logging::LogManager::GetInstance();
+  // log_manager.LogBeginTransaction(end_commit_id);
   // install everything.
   for (auto &tile_group_entry : rw_set) {
     oid_t tile_group_id = tile_group_entry.first;
@@ -393,8 +393,8 @@ Result OptimisticTxnManager::CommitTransaction() {
         ItemPointer old_version(tile_group_id, tuple_slot);
 
         // logging.
-        log_manager.LogUpdate(current_txn, end_commit_id, old_version,
-                              new_version);
+        // log_manager.LogUpdate(current_txn, end_commit_id, old_version,
+                              // new_version);
 
         // we must guarantee that, at any time point, AT LEAST ONE version is
         // visible.
@@ -422,7 +422,7 @@ Result OptimisticTxnManager::CommitTransaction() {
         ItemPointer delete_location(tile_group_id, tuple_slot);
 
         // logging.
-        log_manager.LogDelete(end_commit_id, delete_location);
+        // log_manager.LogDelete(end_commit_id, delete_location);
 
         // we do not change begin cid for old tuple.
         auto new_tile_group_header =
@@ -447,7 +447,7 @@ Result OptimisticTxnManager::CommitTransaction() {
                current_txn->GetTransactionId());
         // set the begin commit id to persist insert
         ItemPointer insert_location(tile_group_id, tuple_slot);
-        log_manager.LogInsert(current_txn, end_commit_id, insert_location);
+        // log_manager.LogInsert(current_txn, end_commit_id, insert_location);
 
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
         tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
@@ -470,7 +470,7 @@ Result OptimisticTxnManager::CommitTransaction() {
       }
     }
   }
-  log_manager.LogCommitTransaction(end_commit_id);
+  // log_manager.LogCommitTransaction(end_commit_id);
 
   EndTransaction();
 

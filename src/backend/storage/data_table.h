@@ -252,6 +252,8 @@ class DataTable : public AbstractTable {
   // set of tile groups
   RWLock tile_group_lock_;
 
+  oid_t last_added_tile_group_id_;
+
   std::vector<oid_t> tile_groups_;
 
   std::atomic<size_t> tile_group_count_ = ATOMIC_VAR_INIT(0);

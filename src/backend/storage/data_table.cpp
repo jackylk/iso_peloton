@@ -548,12 +548,11 @@ oid_t DataTable::AddDefaultTileGroup() {
     LOG_TRACE("Added a tile group ");
 
     tile_group_lock_.WriteLock();
-    tile_groups_.push_back(tile_group_id);
-    tile_group_lock_.Unlock();
-
-
-    // add tile group metadata in locator
     catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
+    last_added_tile_group_id_ = tile_group_id;
+    tile_groups_.push_back(tile_group_id);
+    // add tile group metadata in locator
+    tile_group_lock_.Unlock();
 
     // we must guarantee that the compiler always add tile group before adding
     // tile_group_count_.
@@ -587,11 +586,11 @@ oid_t DataTable::AddTileGroupWithOid(const oid_t &tile_group_id) {
   LOG_TRACE("Added a tile group ");
 
   tile_group_lock_.WriteLock();
-  tile_groups_.push_back(tile_group->GetTileGroupId());
-  tile_group_lock_.Unlock();
-
   // add tile group metadata in locator
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
+  last_added_tile_group_id_ = tile_group_id;
+  tile_groups_.push_back(tile_group->GetTileGroupId());
+  tile_group_lock_.Unlock();
 
   // we must guarantee that the compiler always add tile group before adding
   // tile_group_count_.
@@ -608,11 +607,11 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
   oid_t tile_group_id = tile_group->GetTileGroupId();
 
   tile_group_lock_.WriteLock();
-  tile_groups_.push_back(tile_group_id);
-  tile_group_lock_.Unlock();
-
   // add tile group in catalog
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
+  last_added_tile_group_id_ = tile_group_id;
+  tile_groups_.push_back(tile_group_id);
+  tile_group_lock_.Unlock();
 
   // we must guarantee that the compiler always add tile group before adding
   // tile_group_count_.
@@ -628,14 +627,17 @@ size_t DataTable::GetTileGroupCount() const {
 }
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
-    const oid_t &tile_group_offset) const {
+    const oid_t &tile_group_offset __attribute__((unused))) const {
   assert(tile_group_offset < GetTileGroupCount());
 
-  tile_group_lock_.ReadLock();
-  auto tile_group_id = tile_groups_.at(tile_group_offset);
-  tile_group_lock_.Unlock();
+  auto &manager = catalog::Manager::GetInstance();
+  return manager.GetTileGroup(last_added_tile_group_id_);
 
-  return GetTileGroupById(tile_group_id);
+  // tile_group_lock_.ReadLock();
+  // auto tile_group_id = tile_groups_.at(tile_group_offset);
+  // tile_group_lock_.Unlock();
+
+  // return GetTileGroupById(tile_group_id);
 }
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
