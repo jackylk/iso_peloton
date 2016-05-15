@@ -44,7 +44,7 @@ typedef cuckoohash_map<oid_t, std::shared_ptr<storage::TileGroup>>
 
 class Manager {
  public:
-  Manager() {}
+  Manager(): locator(1U<<24) {}
 
   // Singleton
   static Manager &GetInstance();

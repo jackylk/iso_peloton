@@ -127,6 +127,10 @@ class TransactionManager {
     return EpochManagerFactory::GetInstance().GetMaxDeadTxnCid();
   }
 
+  virtual storage::TileGroup *GetTileGroupFromCache(oid_t tile_group_id __attribute__((unused))) {
+    return nullptr;
+  }
+
  private:
   std::atomic<txn_id_t> next_txn_id_;
   std::atomic<cid_t> next_cid_;

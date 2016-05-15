@@ -14,9 +14,12 @@
 
 #include "backend/concurrency/transaction_manager.h"
 #include "backend/storage/tile_group.h"
+#include "backend/catalog/manager.h"
 
 namespace peloton {
 namespace concurrency {
+
+extern thread_local std::unordered_map<oid_t, storage::TileGroup *> tile_group_cache;
 
 //===--------------------------------------------------------------------===//
 // optimistic concurrency control
@@ -87,6 +90,16 @@ class OptimisticTxnManager : public TransactionManager {
     current_txn = nullptr;
   }
 
+  virtual storage::TileGroup *GetTileGroupFromCache(oid_t tile_group_id) {
+    auto itr = tile_group_cache.find(tile_group_id);
+    if (itr != tile_group_cache.end()) {
+      return itr->second;
+    } else {
+      storage::TileGroup *tile_group = catalog::Manager::GetInstance().GetTileGroup(tile_group_id).get();
+      tile_group_cache.emplace(tile_group_id, tile_group);
+      return tile_group;
+    }
+  }
 };
 }
 }

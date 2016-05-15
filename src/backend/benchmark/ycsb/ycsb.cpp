@@ -209,7 +209,9 @@ void RunBenchmark() {
   RunWorkload();
 
   // Validate MVCC storage
-  ValidateMVCC();
+  // ValidateMVCC();
+
+  LOG_INFO("tile group count %lu", user_table->GetTileGroupCount());
 
   WriteOutput();
 }

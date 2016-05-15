@@ -23,6 +23,8 @@
 namespace peloton {
 namespace concurrency {
 
+thread_local std::unordered_map<oid_t, storage::TileGroup *> tile_group_cache;
+
 OptimisticTxnManager &OptimisticTxnManager::GetInstance() {
   static OptimisticTxnManager txn_manager;
   return txn_manager;
@@ -187,10 +189,8 @@ void OptimisticTxnManager::PerformUpdate(const ItemPointer &old_location,
              new_location.block, new_location.offset );
   auto transaction_id = current_txn->GetTransactionId();
 
-  auto tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(old_location.block)->GetHeader();
-  auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+  auto tile_group_header = GetTileGroupFromCache(old_location.block)->GetHeader();
+  auto new_tile_group_header = GetTileGroupFromCache(new_location.block)->GetHeader();
 
   // if we can perform update, then we must have already locked the older
   // version.
@@ -219,8 +219,8 @@ void OptimisticTxnManager::PerformUpdate(const ItemPointer &location) {
   oid_t tuple_id = location.offset;
   LOG_INFO("PerformUpdate (%u, %u)\n", tile_group_id, tuple_id);
 
-  auto &manager = catalog::Manager::GetInstance();
-  auto tile_group_header = manager.GetTileGroup(tile_group_id)->GetHeader();
+  // auto &manager = catalog::Manager::GetInstance();
+  auto tile_group_header = GetTileGroupFromCache(tile_group_id)->GetHeader();
 
   assert(tile_group_header->GetTransactionId(tuple_id) ==
          current_txn->GetTransactionId());
@@ -307,7 +307,7 @@ Result OptimisticTxnManager::CommitTransaction() {
     // validate read set.
     for (auto &tile_group_entry : rw_set) {
       oid_t tile_group_id = tile_group_entry.first;
-      auto tile_group = manager.GetTileGroup(tile_group_id);
+      auto tile_group = GetTileGroupFromCache(tile_group_id);
       auto tile_group_header = tile_group->GetHeader();
       for (auto &tuple_entry : tile_group_entry.second) {
         auto tuple_slot = tuple_entry.first;
@@ -343,7 +343,7 @@ Result OptimisticTxnManager::CommitTransaction() {
   // validate read set.
   for (auto &tile_group_entry : rw_set) {
     oid_t tile_group_id = tile_group_entry.first;
-    auto tile_group = manager.GetTileGroup(tile_group_id);
+    auto tile_group = GetTileGroupFromCache(tile_group_id);
     auto tile_group_header = tile_group->GetHeader();
     for (auto &tuple_entry : tile_group_entry.second) {
       auto tuple_slot = tuple_entry.first;
@@ -382,7 +382,7 @@ Result OptimisticTxnManager::CommitTransaction() {
   // install everything.
   for (auto &tile_group_entry : rw_set) {
     oid_t tile_group_id = tile_group_entry.first;
-    auto tile_group = manager.GetTileGroup(tile_group_id);
+    auto tile_group = GetTileGroupFromCache(tile_group_id);
     auto tile_group_header = tile_group->GetHeader();
     for (auto &tuple_entry : tile_group_entry.second) {
       auto tuple_slot = tuple_entry.first;
@@ -400,7 +400,7 @@ Result OptimisticTxnManager::CommitTransaction() {
         // visible.
         // we do not change begin cid for old tuple.
         auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
+            GetTileGroupFromCache(new_version.block)->GetHeader();
 
         new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
         new_tile_group_header->SetBeginCommitId(new_version.offset,
@@ -485,7 +485,7 @@ Result OptimisticTxnManager::AbortTransaction() {
 
   for (auto &tile_group_entry : rw_set) {
     oid_t tile_group_id = tile_group_entry.first;
-    auto tile_group = manager.GetTileGroup(tile_group_id);
+    auto tile_group = GetTileGroupFromCache(tile_group_id);
     auto tile_group_header = tile_group->GetHeader();
 
     for (auto &tuple_entry : tile_group_entry.second) {
@@ -496,7 +496,7 @@ Result OptimisticTxnManager::AbortTransaction() {
             tile_group_header->GetNextItemPointer(tuple_slot);
 
         auto new_tile_group_header =
-            manager.GetTileGroup(new_version.block)->GetHeader();
+            GetTileGroupFromCache(new_version.block)->GetHeader();
         new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
         new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
 
