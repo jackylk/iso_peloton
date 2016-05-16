@@ -132,7 +132,6 @@ bool IndexScanExecutor::DExecute() {
 }
 
 bool IndexScanExecutor::ExecPrimaryIndexLookup() {
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   assert(!done_);
 
   std::vector<ItemPointer *> tuple_location_ptrs;
@@ -197,7 +196,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           }
         } else {
           expression::ContainerTuple<storage::TileGroup> tuple(
-              tile_group, tuple_location.offset);
+              tile_group.get(), tuple_location.offset);
           auto eval =
               predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
           if (eval == true) {
@@ -258,16 +257,16 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
             garbage_tuples.AddGarbage(old_item);
 
-            tile_group = txn_manager.GetTileGroupFromCache(tuple_location.block);
-            tile_group_header = tile_group->GetHeader();
+            tile_group = manager.GetTileGroup(tuple_location.block);
+            tile_group_header = tile_group.get()->GetHeader();
             tile_group_header->SetPrevItemPointer(tuple_location.offset, INVALID_ITEMPOINTER);
 
             // Continue the while loop with the new header we get the index head ptr
             continue;
           }
         }
-        tile_group = txn_manager.GetTileGroupFromCache(tuple_location.block);
-        tile_group_header = tile_group->GetHeader();
+        tile_group = manager.GetTileGroup(tuple_location.block);
+        tile_group_header = tile_group.get()->GetHeader();
       }
     }
   }
@@ -297,7 +296,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 }
 
 bool IndexScanExecutor::ExecSecondaryIndexLookup() {
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto &manager = catalog::Manager::GetInstance();
 
   assert(!done_);
 
@@ -323,8 +322,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // for every tuple that is found in the index.
   for (auto tuple_location : tuple_locations) {
     // auto &manager = catalog::Manager::GetInstance();
-    auto tile_group = txn_manager.GetTileGroupFromCache(tuple_location.block);
-    auto tile_group_header = tile_group->GetHeader();
+    auto tile_group = manager.GetTileGroup(tuple_location.block);
+    auto tile_group_header = tile_group.get()->GetHeader();
     auto tile_group_id = tuple_location.block;
     auto tuple_id = tuple_location.offset;
 
@@ -339,7 +338,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
           return res;
         }
       } else {
-        expression::ContainerTuple<storage::TileGroup> tuple(tile_group,
+        expression::ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
                                                              tuple_id);
         auto eval =
             predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
