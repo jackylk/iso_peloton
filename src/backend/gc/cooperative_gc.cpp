@@ -103,6 +103,7 @@ void Cooperative_GCManager::AddToRecycleMap(const TupleMetadata &tuple_metadata)
       new LockfreeQueue<TupleMetadata>(MAX_QUEUE_LENGTH));
     bool ret =
       recycle_queue_map_.insert(tuple_metadata.table_id, recycle_queue);
+      printf("insert once\n");
     if (ret == true) {
       recycle_queue->BlockingPush(tuple_metadata);
     } else {

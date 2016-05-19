@@ -63,11 +63,16 @@ public:
 
   virtual ItemPointer ReturnFreeSlot(const oid_t &table_id);
 
+  void AddRecycleQueue(const oid_t &table_id) {
+    std::shared_ptr<LockfreeQueue<TupleMetadata>> recycle_queue(new LockfreeQueue<TupleMetadata>(MAX_QUEUE_LENGTH));
+    recycle_queue_map_[table_id] = recycle_queue;
+  }
 private:
   void Running();
   //void DeleteTupleFromIndexes(const TupleMetadata &);
 
   bool ResetTuple(const TupleMetadata &);
+
 
 private:
   //===--------------------------------------------------------------------===//

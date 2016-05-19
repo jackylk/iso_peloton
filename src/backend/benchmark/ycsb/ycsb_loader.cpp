@@ -36,6 +36,7 @@
 #include "backend/storage/data_table.h"
 #include "backend/storage/table_factory.h"
 #include "backend/storage/database.h"
+#include "backend/gc/gc_manager_factory.h"
 
 namespace peloton {
 namespace benchmark {
@@ -86,6 +87,10 @@ void CreateYCSBDatabase() {
   user_table = storage::TableFactory::GetDataTable(
       ycsb_database_oid, user_table_oid, table_schema, table_name, 1000,
       own_schema, adapt_table);
+
+  auto &gc_manager = (gc::Cooperative_GCManager &)gc::GCManagerFactory::GetInstance();
+  gc_manager.AddRecycleQueue(user_table_oid);
+
 
   ycsb_database->AddTable(user_table);
 
