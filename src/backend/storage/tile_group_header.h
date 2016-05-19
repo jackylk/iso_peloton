@@ -74,11 +74,11 @@ class TileGroupHeader : public Printable {
   ~TileGroupHeader();
 
   // this function is only called by DataTable::FillInEmptyTupleSlot().
-  oid_t GetNextEmptyTupleSlot() {
+  oid_t GetNextEmptyTupleSlot() __attribute__((noinline)) {
     oid_t tuple_slot_id =
         next_tuple_slot.fetch_add(1, std::memory_order_relaxed);
 
-    if (tuple_slot_id >= num_tuple_slots) {
+    if (tuple_slot_id >= 10000) {
       return INVALID_OID;
     } else {
       return tuple_slot_id;
