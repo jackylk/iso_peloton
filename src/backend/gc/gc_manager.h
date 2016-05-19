@@ -35,7 +35,7 @@ namespace gc {
 #define MAX_ATTEMPT_COUNT 100000
 #define MAX_QUEUE_LENGTH 100000
 
-#define GC_PERIOD_MILLISECONDS 100
+#define GC_PERIOD_MILLISECONDS 20
 class GCBuffer {
 public:
   GCBuffer(oid_t tid):table_id(tid), garbage_tuples() {}
