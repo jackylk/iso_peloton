@@ -38,15 +38,8 @@ Manager &Manager::GetInstance() {
 
 void Manager::AddTileGroup(
     const oid_t oid, const std::shared_ptr<storage::TileGroup> &location) {
-  printf("lock hashmap here %d\n", oid);
-
-  // drop the catalog reference to the old tile group
-  // locator.erase(oid);
-
   // add a catalog reference to the tile group
-  // locator[oid] = location;
-
-  tile_groups[oid] = location;
+  locator[oid] = location;
 }
 
 void Manager::DropTileGroup(const oid_t oid) {
@@ -54,25 +47,23 @@ void Manager::DropTileGroup(const oid_t oid) {
   {
     LOG_INFO("Dropping tile group %u", oid);
     // drop the catalog reference to the tile group
-    // locator.erase(oid);
-    tile_groups[oid] = nullptr;
+    locator.erase(oid);
   }
 }
 
 std::shared_ptr<storage::TileGroup> Manager::GetTileGroup(const oid_t oid) {
   std::shared_ptr<storage::TileGroup> location;
 
-  // if (locator.find(oid, location) == false) {
-  //   return nullptr;
-  // }
-  while (tile_groups[oid].get() == nullptr)
-    ;
-  return tile_groups[oid];
+  if (locator.find(oid, location) == false) {
+    return nullptr;
+  }
+
+  return location;
 }
 
 // used for logging test
 void Manager::ClearTileGroup() {
-  // locator.clear();
+  locator.clear();
 }
 
 //===--------------------------------------------------------------------===//

@@ -44,10 +44,7 @@ typedef cuckoohash_map<oid_t, std::shared_ptr<storage::TileGroup>>
 
 class Manager {
  public:
-  Manager() {
-    for (int i = 0; i < 10240; i++)
-      tile_groups[i] = nullptr;
-  }
+  Manager() {}
 
   // Singleton
   static Manager &GetInstance();
@@ -116,10 +113,6 @@ class Manager {
   std::vector<storage::Database *> databases;
 
   std::mutex catalog_mutex;
-
-  // HACK
-
-  std::shared_ptr<storage::TileGroup> tile_groups[10240] = {};
 };
 
 }  // End catalog namespace
