@@ -63,7 +63,7 @@ public:
 
   virtual ItemPointer ReturnFreeSlot(const oid_t &table_id);
 
-  void AddRecycleQueue(const oid_t &table_id) {
+  void AddRecycleQueue(const oid_t &table_id __attribute__((unused))) {
     std::shared_ptr<LockfreeQueue<TupleMetadata>> recycle_queue(new LockfreeQueue<TupleMetadata>(MAX_QUEUE_LENGTH));
     recycle_queue_map_[table_id] = recycle_queue;
   }
@@ -99,7 +99,7 @@ private:
   LockfreeQueue<TupleMetadata> reclaim_queue_;
 
   // TODO: use shared pointer to reduce memory copy
-  cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>
+  std::unordered_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>
   recycle_queue_map_;
 };
 
