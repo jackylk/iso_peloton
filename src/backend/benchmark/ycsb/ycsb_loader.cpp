@@ -85,7 +85,7 @@ void CreateYCSBDatabase() {
   std::string table_name("USERTABLE");
 
   user_table = storage::TableFactory::GetDataTable(
-      ycsb_database_oid, user_table_oid, table_schema, table_name, 1000,
+      ycsb_database_oid, user_table_oid, table_schema, table_name, 10000,
       own_schema, adapt_table);
 
   auto &gc_manager = (gc::Cooperative_GCManager &)gc::GCManagerFactory::GetInstance();
