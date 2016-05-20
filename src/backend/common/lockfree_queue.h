@@ -54,8 +54,9 @@ class LockfreeQueue {
     queue_.enqueue(item);
   }
 
+  // Warning: this is just an approximation, see concurrentqueue.h
   bool IsEmpty() {
-    return queue_.is_empty();
+    return queue_.size_approx() == 0;
   }
 
  private:
