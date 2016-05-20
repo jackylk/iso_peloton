@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <boost/lockfree/queue.hpp>
+#include "concurrentqueue/concurrentqueue.h"
 
 #include <xmmintrin.h>
 
@@ -35,33 +35,31 @@ class LockfreeQueue {
   // return true if pop is successful.
   // if queue is empty, then return false.
   bool TryPop(T& item) {
-    return queue_.pop(item);
+    return queue_.try_dequeue(item);
   }
 
   // return true if push is successful.
   bool TryPush(const T& item) {
-    return queue_.push(item);
+    return queue_.try_enqueue(item);
   }
 
 
   void BlockingPop(T& item) {
-    while (queue_.pop(item) == false) {
+    while (queue_.try_dequeue(item) == false) {
       _mm_pause();
     }
   }
 
   void BlockingPush(const T& item) {
-    while (queue_.push(item) == false) {
-      _mm_pause();
-    }
+    queue_.enqueue(item);
   }
 
   bool IsEmpty() {
-    return queue_.empty();
+    return queue_.is_empty();
   }
 
  private:
-  boost::lockfree::queue<T> queue_;
+  moodycamel::ConcurrentQueue<T> queue_;
 };
 
 }  // namespace peloton
