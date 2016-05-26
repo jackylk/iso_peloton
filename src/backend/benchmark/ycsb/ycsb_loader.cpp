@@ -88,9 +88,12 @@ void CreateYCSBDatabase() {
       ycsb_database_oid, user_table_oid, table_schema, table_name, 10000,
       own_schema, adapt_table);
 
-  auto &gc_manager = (gc::Cooperative_GCManager &)gc::GCManagerFactory::GetInstance();
-  gc_manager.AddRecycleQueue(user_table_oid);
+  auto &gc_manager = gc::GCManagerFactory::GetInstance();
 
+  if (gc::GCManagerFactory::GetGCType() == GC_TYPE_CO) {
+    auto &co_gc_manager = (gc::Cooperative_GCManager &)gc_manager;
+    co_gc_manager.AddRecycleQueue(user_table_oid);  
+  }
 
   ycsb_database->AddTable(user_table);
 

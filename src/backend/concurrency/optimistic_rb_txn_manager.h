@@ -123,28 +123,34 @@ class OptimisticRbTxnManager : public TransactionManager {
   }
 
   // Return nullptr if the tuple is not activated to current txn.
-  // Otherwise return the evident that current tuple is activated
+  // Otherwise return the evident that current tuple is activated, the evidence
+  // is either a RB or a pointer to the master version
   inline char* GetActivatedEvidence(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_slot_id) {
     cid_t txn_begin_cid = current_txn->GetBeginCommitId();
     cid_t tuple_begin_cid = tile_group_header->GetBeginCommitId(tuple_slot_id);
 
+    // The tuple is still valid
     assert(tuple_begin_cid != MAX_CID);
     // Owner can not call this function
     assert(IsOwner(tile_group_header, tuple_slot_id) == false);
 
-    RBSegType rb_seg = GetRbSeg(tile_group_header, tuple_slot_id);
-    char *prev_visible;
+    
     bool master_activated = (txn_begin_cid >= tuple_begin_cid);
+    char *prev_visible = master_activated ? 
+      tile_group_header->GetReservedFieldRef(tuple_slot_id) : nullptr;
 
-    if (master_activated)
-      prev_visible = tile_group_header->GetReservedFieldRef(tuple_slot_id);
-    else
-      prev_visible = nullptr;
-
-    while (IsRBVisible(rb_seg, txn_begin_cid)) {
+    RBSegType rb_seg = GetRbSeg(tile_group_header, tuple_slot_id);
+  
+    do {
+      if (rb_seg == nullptr)
+        break;
+      cid_t rb_ts = storage::RollbackSegmentPool::GetTimeStamp(rb_seg);
+      if (txn_begin_cid >= rb_ts)
+        break;
+      // This rb is visible
       prev_visible = rb_seg;
       rb_seg = storage::RollbackSegmentPool::GetNextPtr(rb_seg);
-    }
+    } while (true);
 
     return prev_visible;
   }
@@ -243,9 +249,12 @@ class OptimisticRbTxnManager : public TransactionManager {
   cuckoohash_map<cid_t, std::shared_ptr<storage::RollbackSegmentPool>> garbage_pools_;
 
   inline void SetRbSeg(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id,
-                       const RBSegType seg_ptr) {
+                       const RBSegType new_rb_seg) {
     const char **rb_seg_ptr = (const char **)(tile_group_header->GetReservedFieldRef(tuple_id) + rb_seg_offset);
-    *rb_seg_ptr = seg_ptr;
+    if (new_rb_seg != nullptr) {
+      assert(storage::RollbackSegmentPool::GetNextPtr(new_rb_seg) == *rb_seg_ptr);  
+    }
+    *rb_seg_ptr = new_rb_seg;
   }
 
   inline bool GetDeleteFlag(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id) {

@@ -170,19 +170,23 @@ bool OptimisticRbTxnManager::PerformInsert(const ItemPointer &location) {
 
 void OptimisticRbTxnManager::PerformUpdateWithRb(const ItemPointer &location, char *new_rb_seg) {
 
+  assert(new_rb_seg != nullptr);
+
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
   auto tile_group_header =
     catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
 
+  // Current txn must own the tuple
   assert(tile_group_header->GetTransactionId(tuple_id) == current_txn->GetTransactionId());
+  // Current tuple must be the master version
   assert(tile_group_header->GetEndCommitId(tuple_id) == MAX_CID);
 
   // new_rb_seg is a new segment
   assert(storage::RollbackSegmentPool::GetNextPtr(new_rb_seg) == nullptr);
   assert(storage::RollbackSegmentPool::GetTimeStamp(new_rb_seg) == MAX_CID);
 
-  // First link it to the old roolback segment
+  // First link it to the old rollback segment
   auto old_rb_seg = GetRbSeg(tile_group_header, tuple_id);
   storage::RollbackSegmentPool::SetNextPtr(new_rb_seg, old_rb_seg);
 
@@ -375,8 +379,8 @@ Result OptimisticRbTxnManager::CommitTransaction() {
   }
   //////////////////////////////////////////////////////////
 
-//  auto &log_manager = logging::LogManager::GetInstance();
-//  log_manager.LogBeginTransaction(end_commit_id);
+  // auto &log_manager = logging::LogManager::GetInstance();
+  // log_manager.LogBeginTransaction(end_commit_id);
   // install everything.
   for (auto &tile_group_entry : rw_set) {
     oid_t tile_group_id = tile_group_entry.first;
@@ -385,14 +389,14 @@ Result OptimisticRbTxnManager::CommitTransaction() {
     for (auto &tuple_entry : tile_group_entry.second) {
       auto tuple_slot = tuple_entry.first;
       if (tuple_entry.second == RW_TYPE_UPDATE) {
-//        // logging.
-//        ItemPointer new_version =
-//          tile_group_header->GetNextItemPointer(tuple_slot);
-//        ItemPointer old_version(tile_group_id, tuple_slot);
-//
-//        // logging.
-//        log_manager.LogUpdate(current_txn, end_commit_id, old_version,
-//                              new_version);
+       // // logging.
+       // ItemPointer new_version =
+       //   tile_group_header->GetNextItemPointer(tuple_slot);
+       // ItemPointer old_version(tile_group_id, tuple_slot);
+
+       // // logging.
+       // log_manager.LogUpdate(current_txn, end_commit_id, old_version,
+       //                       new_version);
 
         // First set the timestamp of the updated master copy
         // Since we have the rollback segment, it's safe to do so
@@ -408,12 +412,12 @@ Result OptimisticRbTxnManager::CommitTransaction() {
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
       } else if (tuple_entry.second == RW_TYPE_DELETE) {
-//        ItemPointer new_version =
-//          tile_group_header->GetNextItemPointer(tuple_slot);
-//        ItemPointer delete_location(tile_group_id, tuple_slot);
-//
-//        // logging.
-//        log_manager.LogDelete(end_commit_id, delete_location);
+       // ItemPointer new_version =
+       //   tile_group_header->GetNextItemPointer(tuple_slot);
+       // ItemPointer delete_location(tile_group_id, tuple_slot);
+
+       // // logging.
+       // log_manager.LogDelete(end_commit_id, delete_location);
 
         // we do not change begin cid for master copy
         // First set the timestamp of the master copy
@@ -442,7 +446,7 @@ Result OptimisticRbTxnManager::CommitTransaction() {
                current_txn->GetTransactionId());
         // set the begin commit id to persist insert
         // ItemPointer insert_location(tile_group_id, tuple_slot);
-//        log_manager.LogInsert(current_txn, end_commit_id, insert_location);
+        // log_manager.LogInsert(current_txn, end_commit_id, insert_location);
 
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
         tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
