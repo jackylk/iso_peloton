@@ -141,16 +141,10 @@ class OptimisticRbTxnManager : public TransactionManager {
 
     RBSegType rb_seg = GetRbSeg(tile_group_header, tuple_slot_id);
   
-    do {
-      if (rb_seg == nullptr)
-        break;
-      cid_t rb_ts = storage::RollbackSegmentPool::GetTimeStamp(rb_seg);
-      if (txn_begin_cid >= rb_ts)
-        break;
-      // This rb is visible
+    while (IsRBVisible(rb_seg, txn_begin_cid)) {
       prev_visible = rb_seg;
       rb_seg = storage::RollbackSegmentPool::GetNextPtr(rb_seg);
-    } while (true);
+    }
 
     return prev_visible;
   }
@@ -176,8 +170,6 @@ class OptimisticRbTxnManager : public TransactionManager {
     txn->SetEpochId(eid);
 
     latest_read_timestamp = begin_cid;
-    // Add to running transaction table
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = begin_cid;
     // Create current transaction poll
     current_segment_pool = new storage::RollbackSegmentPool(BACKEND_TYPE_MM);
 
@@ -185,12 +177,6 @@ class OptimisticRbTxnManager : public TransactionManager {
   }
 
   virtual void EndTransaction() {
-
-
-    txn_id_t txn_id = current_txn->GetTransactionId();
-
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
-
     auto result = current_txn->GetResult();
     auto end_cid = current_txn->GetEndCommitId();
 
@@ -218,10 +204,50 @@ class OptimisticRbTxnManager : public TransactionManager {
     current_segment_pool = nullptr;
   }
 
-  // Init reserved area of a tuple
+  // A helper function to validate correctness
+  void ValidateRbSegChain(storage::TileGroupHeader *tile_group_header, const oid_t &tuple_id) {
+    RBSegType rb_seg = GetRbSeg(tile_group_header, tuple_id);
+    cid_t begin_ts = tile_group_header->GetBeginCommitId(tuple_id);
+    bool no_max_cid = false;
+
+    while (rb_seg != nullptr) {
+      cid_t rb_ts = storage::RollbackSegmentPool::GetTimeStamp(rb_seg);
+      if (rb_ts == MAX_CID) {
+        CHECK_M(no_max_cid == false, "Should not have a max cid on rb seg");
+      } else {
+        no_max_cid = true;
+        CHECK_M(rb_ts <= begin_ts, "RB has a TS that is bigger than previous TS");
+      }
+      rb_seg = storage::RollbackSegmentPool::GetNextPtr(rb_seg);
+      begin_ts = rb_ts;
+    }
+  }
+
+  // Get current segment pool of the transaction manager
+  inline storage::RollbackSegmentPool *GetSegmentPool() {
+    return current_segment_pool;
+  }
+
+  // Get the head of RB Seg of a tuple
+  inline RBSegType GetRbSeg(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id) {
+    RBSegType *rb_seg_ptr = (RBSegType *)(tile_group_header->GetReservedFieldRef(tuple_id) + rb_seg_offset);
+    return *rb_seg_ptr;
+  }
+
+private:
+  static const size_t lock_offset = 0;
+  static const size_t rb_seg_offset = lock_offset + 8;
+  static const size_t delete_flag_offset = rb_seg_offset + sizeof(RBSegType);
+  // TODO: add cooperative GC
+  // The RB segment pool that is activlely being used
+  cuckoohash_map<cid_t, std::shared_ptr<storage::RollbackSegmentPool>> living_pools_;
+  // The RB segment pool that has been marked as garbage
+  cuckoohash_map<cid_t, std::shared_ptr<storage::RollbackSegmentPool>> garbage_pools_;
+
+   // Init reserved area of a tuple
   // delete_flag is used to mark that the transaction that owns the tuple
   // has deleted the tuple
-  // Spinlock (8 bytes) | next_seg_pointer (8 bytes) | delete_flag (1 bytes)
+  // Spinlock (8 bytes) | RB seg pointer (8 bytes) | delete_flag (1 bytes)
   void InitTupleReserved(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id) {
     auto reserved_area = tile_group_header->GetReservedFieldRef(tuple_id);
     new (reserved_area + lock_offset) Spinlock();
@@ -229,34 +255,17 @@ class OptimisticRbTxnManager : public TransactionManager {
     *(reinterpret_cast<bool*>(reserved_area + delete_flag_offset)) = false;
   }
 
-  // Get current segment pool of the transaction manager
-  inline storage::RollbackSegmentPool *GetSegmentPool() {return current_segment_pool;}
-
-  inline RBSegType GetRbSeg(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id) {
-    char **rb_seg_ptr = (char **)(tile_group_header->GetReservedFieldRef(tuple_id) + rb_seg_offset);
-    return *rb_seg_ptr;
-  }
-
- private:
-  static const size_t lock_offset = 0;
-  static const size_t rb_seg_offset  = lock_offset + sizeof(oid_t);
-  static const size_t delete_flag_offset = rb_seg_offset + sizeof(char*);
-  cuckoohash_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
-  // TODO: add cooperative GC
-  // The RB segment pool that is activlely being used
-  cuckoohash_map<cid_t, std::shared_ptr<storage::RollbackSegmentPool>> living_pools_;
-  // The RB segment pool that has been marked as garbage
-  cuckoohash_map<cid_t, std::shared_ptr<storage::RollbackSegmentPool>> garbage_pools_;
-
+  // Set the head of RB Seg of a tuple
   inline void SetRbSeg(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id,
                        const RBSegType new_rb_seg) {
-    const char **rb_seg_ptr = (const char **)(tile_group_header->GetReservedFieldRef(tuple_id) + rb_seg_offset);
+    RBSegType *rb_seg_ptr = (RBSegType *)(tile_group_header->GetReservedFieldRef(tuple_id) + rb_seg_offset);
     if (new_rb_seg != nullptr) {
       assert(storage::RollbackSegmentPool::GetNextPtr(new_rb_seg) == *rb_seg_ptr);  
     }
     *rb_seg_ptr = new_rb_seg;
   }
 
+  // Delete flag
   inline bool GetDeleteFlag(const storage::TileGroupHeader *tile_group_header, const oid_t tuple_id) {
     return *(reinterpret_cast<bool*>(tile_group_header->GetReservedFieldRef(tuple_id) + delete_flag_offset));
   }

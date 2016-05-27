@@ -100,11 +100,13 @@ bool OptimisticRbTxnManager::IsOwner(
 bool OptimisticRbTxnManager::IsOwnable(
   const storage::TileGroupHeader *const tile_group_header,
   const oid_t &tuple_id) {
-  auto tuple_txn_id = tile_group_header->GetTransactionId(tuple_id);
-  char *evidence = GetActivatedEvidence(tile_group_header, tuple_id);
 
-  return tuple_txn_id == INITIAL_TXN_ID && 
-        evidence == tile_group_header->GetReservedFieldRef(tuple_id);
+  txn_id_t tuple_txn_id = tile_group_header->GetTransactionId(tuple_id);
+  if (tuple_txn_id != INITIAL_TXN_ID)
+    return false;
+
+  char *evidence = GetActivatedEvidence(tile_group_header, tuple_id);
+  return evidence == tile_group_header->GetReservedFieldRef(tuple_id);
 }
 
 // get write lock on a tuple.
@@ -112,6 +114,7 @@ bool OptimisticRbTxnManager::IsOwnable(
 bool OptimisticRbTxnManager::AcquireOwnership(
   const storage::TileGroupHeader *const tile_group_header,
   const oid_t &tile_group_id __attribute__((unused)), const oid_t &tuple_id) {
+  
   auto txn_id = current_txn->GetTransactionId();
 
   if (tile_group_header->SetAtomicTransactionId(tuple_id, txn_id) == false) {
@@ -158,9 +161,7 @@ bool OptimisticRbTxnManager::PerformInsert(const ItemPointer &location) {
 
   tile_group_header->SetTransactionId(tuple_id, transaction_id);
 
-  // no need to set next item pointer.
-
-  // init the reserved field
+  // Init the reserved field. No need to set next item pointer.
   InitTupleReserved(tile_group_header, tuple_id);
 
   // Add the new tuple into the insert set
@@ -176,6 +177,9 @@ void OptimisticRbTxnManager::PerformUpdateWithRb(const ItemPointer &location, ch
   oid_t tuple_id = location.offset;
   auto tile_group_header =
     catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
+
+  // Self is owner
+  assert(IsOwner(tile_group_header, tuple_id) == true);
 
   // Current txn must own the tuple
   assert(tile_group_header->GetTransactionId(tuple_id) == current_txn->GetTransactionId());
@@ -264,7 +268,7 @@ void OptimisticRbTxnManager::InstallRollbackSegments(storage::TileGroupHeader *t
 
 /**
  * @brief Check if begin commit id and end commit id still falls in the same version
- *        as when then transaction starts
+ *        as when the transaction starts
  */
 bool OptimisticRbTxnManager::ValidateRead(const storage::TileGroupHeader *const tile_group_header, const oid_t &tuple_id, const cid_t &end_cid) {
   auto tuple_end_cid = tile_group_header->GetEndCommitId(tuple_id);
@@ -276,7 +280,6 @@ bool OptimisticRbTxnManager::ValidateRead(const storage::TileGroupHeader *const 
 
   // The following is essentially to test that begin_cid and end_cid will look at the same
   // version
-
   if (end_cid >= tuple_end_cid) {
     // Read tuple is invalidated by others
     return false;
